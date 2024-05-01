@@ -4,3 +4,12 @@ plugins {
     id 'com.android.library' version '8.1.2' apply false
     id 'org.jetbrains.kotlin.android' version '1.9.21' apply false
 }
+ext {
+    mapkitApiKey = getMapkitApiKey()
+}
+
+private String getMapkitApiKey() {
+    def properties = new Properties()
+    project.file("local.properties").withInputStream { properties.load(it) }
+    return properties.getProperty("MAPKIT_API_KEY", "")
+}
