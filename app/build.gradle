@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.kapt'
 }
 
 android {
@@ -22,6 +23,7 @@ android {
         }
 
         buildConfigField "String", "MAPKIT_API_KEY", "${properties.getProperty("MAPKIT_API_KEY","")}"
+//        buildConfigField "String", "MAPKIT_API_KEY", "\"${mapkitApiKey}\""
 
     }
     buildFeatures {
@@ -45,6 +47,9 @@ android {
 }
 
 dependencies {
+    def room_version = "2.6.0"
+    def coroutines_version = "1.7.1"
+    def lifecycle_version = "2.6.1"
 
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
@@ -54,4 +59,10 @@ dependencies {
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     implementation 'com.yandex.android:maps.mobile:4.5.1-lite'
+    implementation 'androidx.navigation:navigation-fragment-ktx:2.7.6' //Для работы с навигацей по фрагментами
+    implementation 'androidx.navigation:navigation-ui-ktx:2.7.6'//Для работы с навигацей по фрагментами
+    implementation "androidx.room:room-runtime:$room_version" //для room
+    kapt "androidx.room:room-compiler:$room_version"//Для room
+    implementation "androidx.room:room-ktx:$room_version" //для room с корутинами
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutines_version" //Корутины
 }
