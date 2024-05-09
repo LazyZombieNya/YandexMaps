@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">YandexMaps</string>
+    <string name="zoom_plus">Plus</string>
+    <string name="zoom_minus">Minus</string>
+    <string name="map_fragment_title">MAP</string>
+    <string name="currnet_place">Current location</string>
 </resources>
