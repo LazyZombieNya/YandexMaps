@@ -11,7 +11,9 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.yandex.mapkit.Animation
 import com.yandex.mapkit.MapKitFactory
 import com.yandex.mapkit.map.CameraPosition
+import com.yandex.mapkit.map.InputListener
 import com.yandex.mapkit.map.MapObjectTapListener
+import com.yandex.mapkit.map.Map
 import com.yandex.mapkit.mapview.MapView
 import ru.netology.yandexmaps.BuildConfig
 import ru.netology.yandexmaps.databinding.FragmentMapsBinding
@@ -27,21 +29,8 @@ class MapsFragment :Fragment() {
         super.onCreate(savedInstanceState)
         setApiKey(savedInstanceState) // Проверяем: был ли уже ранее установлен API-ключ в приложении. Если нет - устанавливаем его.
         MapKitFactory.initialize(requireContext()) // Инициализация библиотеки для загрузки необходимых нативных библиотек.
-        binding = FragmentMapsBinding.inflate(layoutInflater) // Раздуваем макет только после того, как установили API-ключ
+        //binding = FragmentMapsBinding.inflate(layoutInflater) // Раздуваем макет только после того, как установили API-ключ
 
-        mapView.map.addTapListener { point, _ ->
-            showAddPointDialog(point.latitude, point.longitude)
-            true
-        }
-
-        pointViewModel.allPoints.observe(this, { points ->
-            mapView.map.mapObjects.clear()
-            points.forEach { point ->
-                val mapObject = mapView.map.mapObjects.addPlacemark(Point(point.latitude, point.longitude))
-                mapObject.userData = point
-                mapObject.addTapListener(mapObjectTapListener)
-            }
-        })
     }
 
     override fun onCreateView(
@@ -50,6 +39,30 @@ class MapsFragment :Fragment() {
         savedInstanceState: Bundle?
     ): View {
         val binding =  FragmentMapsBinding.inflate(inflater, container, false)
+
+        val listener = object : InputListener {
+            override fun onMapTap(map: Map, point: com.yandex.mapkit.geometry.Point) {
+                showAddPointDialog(point.latitude, point.longitude)
+            }
+
+            override fun onMapLongTap(p0: Map, p1: com.yandex.mapkit.geometry.Point) {
+                TODO("Not yet implemented")
+            }
+
+        }
+        binding.map.mapWindow.map.addInputListener(listener)
+        binding.plus.setOnClickListener {
+            binding.map.mapWindow.map.move(
+                CameraPosition(
+                    binding.map.mapWindow.map.cameraPosition.target,
+                    binding.map.mapWindow.map.cameraPosition.zoom + 1,
+                    0.0f,
+                    0.0f
+                ),
+                Animation(Animation.Type.SMOOTH, 0.3F),
+                null
+            )
+        }
 
         binding.plus.setOnClickListener {
             binding.map.mapWindow.map.move(
@@ -79,8 +92,8 @@ class MapsFragment :Fragment() {
     }
 
     private fun showAddPointDialog(latitude: Double, longitude: Double) {
-        val input = EditText(this)
-        MaterialAlertDialogBuilder(this)
+        val input = EditText(requireContext())
+        MaterialAlertDialogBuilder(requireContext())
             .setTitle("Добавить точку")
             .setMessage("Введите описание")
             .setView(input)
@@ -100,9 +113,9 @@ class MapsFragment :Fragment() {
     }
 
     private fun showEditPointDialog(point: Point) {
-        val input = EditText(this)
+        val input = EditText(requireContext())
         input.setText(point.description)
-        MaterialAlertDialogBuilder(this)
+        MaterialAlertDialogBuilder(requireContext())
             .setTitle("Редактировать точку")
             .setMessage("Измените описание")
             .setView(input)
