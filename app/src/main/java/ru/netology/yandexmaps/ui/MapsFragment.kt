@@ -36,7 +36,7 @@ class MapsFragment :Fragment() {
 
         val imageProvider = ImageProvider.fromResource(context, R.drawable.baseline_person_pin_circle_24)
 
-        pointViewModel.allPoints.observe(this) { points ->
+        pointViewModel.allPoints.observe(viewLifecycleOwner) { points ->
             mapView.map.mapObjects.clear()
             points.forEach { point ->
                 val mapObject =
@@ -55,7 +55,11 @@ class MapsFragment :Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View {
+    ): View? {
+        // Инициализация mapView
+//        val view = inflater.inflate(R.layout.fragment_maps, container, false)
+//        mapView = view.findViewById(R.id.map)
+//        return view
         val binding =  FragmentMapsBinding.inflate(inflater, container, false)
 
         val listener = object : InputListener {
@@ -66,6 +70,7 @@ class MapsFragment :Fragment() {
 
             override fun onMapLongTap(p0: Map, p1: com.yandex.mapkit.geometry.Point) {
                 //showEditPointDialog(com.yandex.mapkit.geometry.Point)
+                showAddPointDialog(p1.latitude, p1.longitude)
             }
 
         }
