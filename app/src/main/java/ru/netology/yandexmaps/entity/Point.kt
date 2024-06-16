@@ -6,8 +6,9 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "points")
 data class Point(
     @PrimaryKey(autoGenerate = true)
-    val id: Int = 0,
+    var id: Long = 0,
     val latitude: Double,
     val longitude: Double,
-    val description: String
+    var title: String,
+    var description: String
 )

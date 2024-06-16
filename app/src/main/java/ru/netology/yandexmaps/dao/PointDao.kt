@@ -6,15 +6,15 @@ import ru.netology.yandexmaps.entity.Point
 
 @Dao
 interface PointDao {
-    @Query("SELECT * FROM points")
-    fun getAllPoints(): LiveData<List<Point>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertPoint(point: Point)
+    @Insert
+    suspend fun insert(point: Point): Long
 
     @Update
-    suspend fun updatePoint(point: Point)
+    suspend fun update(point: Point)
 
     @Delete
-    suspend fun deletePoint(point: Point)
+    suspend fun delete(point: Point)
+
+    @Query("SELECT * FROM points")
+    suspend fun getAllPoints(): List<Point>
 }

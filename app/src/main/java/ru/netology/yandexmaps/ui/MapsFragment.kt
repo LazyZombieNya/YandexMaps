@@ -1,53 +1,42 @@
 package ru.netology.yandexmaps.ui
 
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.EditText
+import android.widget.Toast
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import androidx.lifecycle.lifecycleScope
 import com.yandex.mapkit.Animation
 import com.yandex.mapkit.MapKitFactory
 import com.yandex.mapkit.map.CameraPosition
-import com.yandex.mapkit.map.InputListener
 import com.yandex.mapkit.map.MapObjectTapListener
-import com.yandex.mapkit.map.Map
+import com.yandex.mapkit.map.MapObjectCollection
+import com.yandex.mapkit.map.PlacemarkMapObject
 import com.yandex.mapkit.mapview.MapView
+import com.yandex.runtime.connectivity.internal.ConnectivitySubscription
 import com.yandex.runtime.image.ImageProvider
+import kotlinx.coroutines.launch
 import ru.netology.yandexmaps.BuildConfig
 import ru.netology.yandexmaps.R
+import ru.netology.yandexmaps.dao.PointDao
 import ru.netology.yandexmaps.databinding.FragmentMapsBinding
+import ru.netology.yandexmaps.db.AppDatabase
 import ru.netology.yandexmaps.entity.Point
 import ru.netology.yandexmaps.viewmodel.PointViewModel
 
 class MapsFragment :Fragment() {
     private lateinit var binding: FragmentMapsBinding
     private lateinit var mapView: MapView
-    private val pointViewModel: PointViewModel by viewModels()
+    private lateinit var database: AppDatabase
+    private lateinit var pointDao: PointDao
+    private val points = mutableListOf<Point>()  // Список для хранения точек
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setApiKey(savedInstanceState) // Проверяем: был ли уже ранее установлен API-ключ в приложении. Если нет - устанавливаем его.
-        MapKitFactory.initialize(requireContext()) // Инициализация библиотеки для загрузки необходимых нативных библиотек.
         binding = FragmentMapsBinding.inflate(layoutInflater) // Раздуваем макет только после того, как установили API-ключ
 
-        val imageProvider = ImageProvider.fromResource(context, R.drawable.baseline_person_pin_circle_24)
-
-        pointViewModel.allPoints.observe(viewLifecycleOwner) { points ->
-            mapView.map.mapObjects.clear()
-            points.forEach { point ->
-                val mapObject =
-                    mapView.map.mapObjects.addPlacemark().apply {
-                        com.yandex.mapkit.geometry.Point(point.latitude, point.longitude)
-                        setIcon(imageProvider)
-                    }
-                mapObject.userData = point
-                mapObject.addTapListener(mapObjectTapListener)
-            }
-        }
 
     }
 
@@ -56,39 +45,11 @@ class MapsFragment :Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        // Инициализация mapView
-//        val view = inflater.inflate(R.layout.fragment_maps, container, false)
-//        mapView = view.findViewById(R.id.map)
-//        return view
+
+        MapKitFactory.initialize(requireContext())
+        return inflater.inflate(R.layout.fragment_maps, container, false)
         val binding =  FragmentMapsBinding.inflate(inflater, container, false)
 
-        val listener = object : InputListener {
-            override fun onMapTap(map: Map, point: com.yandex.mapkit.geometry.Point) {
-
-                showAddPointDialog(point.latitude, point.longitude)
-            }
-
-            override fun onMapLongTap(p0: Map, p1: com.yandex.mapkit.geometry.Point) {
-                //showEditPointDialog(com.yandex.mapkit.geometry.Point)
-                showAddPointDialog(p1.latitude, p1.longitude)
-            }
-
-        }
-
-        binding.map.mapWindow.map.addInputListener(listener)
-
-        binding.plus.setOnClickListener {
-            binding.map.mapWindow.map.move(
-                CameraPosition(
-                    binding.map.mapWindow.map.cameraPosition.target,
-                    binding.map.mapWindow.map.cameraPosition.zoom + 1,
-                    0.0f,
-                    0.0f
-                ),
-                Animation(Animation.Type.SMOOTH, 0.3F),
-                null
-            )
-        }
 
         binding.plus.setOnClickListener {
             binding.map.mapWindow.map.move(
@@ -116,48 +77,82 @@ class MapsFragment :Fragment() {
         }
         return binding.root
     }
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        mapView = view.findViewById(R.id.map)
+        database = AppDatabase.getDatabase(requireContext())
+        pointDao = database.pointDao()
 
-    private fun showAddPointDialog(latitude: Double, longitude: Double) {
-        Log.d("MapsFragment", "Showing add point dialog 2")
-        val input = EditText(requireContext())
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Добавить точку")
-            .setMessage("Введите описание")
-            .setView(input)
-            .setPositiveButton("OK") { dialog, _ ->
-                val description = input.text.toString()
-                pointViewModel.insertPoint(Point(latitude = latitude, longitude = longitude, description = description))
-                dialog.dismiss()
-            }
-            .setNegativeButton("Отмена") { dialog, _ -> dialog.cancel() }
-            .show()
+        // Отключаем жесты поворота карты
+        mapView.map.isRotateGesturesEnabled = false
+
+        // Listener для кликов на карте
+        mapView.map.addTapListener ( point, _ ->
+            createMarker(point.latitude, point.longitude)
+            true
+        )
+
+        // Загрузка точек из базы данных
+        loadPoints()
     }
 
-    private val mapObjectTapListener = MapObjectTapListener { mapObject, _ ->
-        val point = mapObject.userData as Point
-        showEditPointDialog(point)
-        true
+
+    private fun createMarker(latitude: Double, longitude: Double) {
+        val placemark = mapView.map.mapObjects.addPlacemark(
+            com.yandex.mapkit.geometry.Point(
+                latitude,
+                longitude
+            )
+        )
+        placemark.setIcon(ImageProvider.fromResource(requireContext(), R.drawable.baseline_person_pin_circle_24))
+
+        // Слушатель для кликов на маркере
+        placemark.addTapListener(MapObjectTapListener { mapObject, _ ->
+            val pointData = points.find { it.latitude == latitude && it.longitude == longitude }
+            if (pointData != null) {
+                editMarker(pointData, mapObject as PlacemarkMapObject)
+            }
+            true
+        })
+
+        // Добавление новой точки в список и базу данных
+        val newPoint = Point(latitude = latitude, longitude = longitude, title = "Новая точка", description = "Описание")
+        lifecycleScope.launch {
+            val id = pointDao.insert(newPoint)
+            newPoint.id = id
+            points.add(newPoint)
+        }
+
+        Toast.makeText(requireContext(), "Маркер добавлен", Toast.LENGTH_SHORT).show()
     }
 
-    private fun showEditPointDialog(point: Point) {
-        val input = EditText(requireContext())
-        input.setText(point.description)
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Редактировать точку")
-            .setMessage("Измените описание")
-            .setView(input)
-            .setPositiveButton("OK") { dialog, _ ->
-                val description = input.text.toString()
-                pointViewModel.updatePoint(point.copy(description = description))
-                dialog.dismiss()
-            }
-            .setNegativeButton("Удалить") { dialog, _ ->
-                pointViewModel.deletePoint(point)
-                dialog.dismiss()
-            }
-            .setNeutralButton("Отмена") { dialog, _ -> dialog.cancel() }
-            .show()
+    private fun editMarker(pointData: Point, placemark: PlacemarkMapObject) {
+        // Здесь можно реализовать диалог для редактирования точки
+        // Для простоты используем тост для демонстрации
+        Toast.makeText(requireContext(), "Редактирование точки: ${pointData.title}", Toast.LENGTH_SHORT).show()
     }
+
+    private fun loadPoints() {
+        lifecycleScope.launch {
+            val loadedPoints = pointDao.getAllPoints()
+            points.addAll(loadedPoints)
+
+            for (point in points) {
+                val placemark = mapView.map.mapObjects.addPlacemark(
+                    com.yandex.mapkit.geometry.Point(
+                        point.latitude,
+                        point.longitude
+                    )
+                )
+                placemark.setIcon(ImageProvider.fromResource(requireContext(), R.drawable.baseline_person_pin_circle_24))
+                placemark.addTapListener(MapObjectTapListener { mapObject, _ ->
+                    editMarker(point, mapObject as PlacemarkMapObject)
+                    true
+                })
+            }
+        }
+    }
+
 
     private fun setApiKey(savedInstanceState: Bundle?) {
         val haveApiKey = savedInstanceState?.getBoolean("haveApiKey") ?: false // При первом запуске приложения всегда false
