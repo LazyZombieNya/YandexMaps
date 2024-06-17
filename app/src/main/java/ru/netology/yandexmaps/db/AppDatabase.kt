@@ -12,19 +12,17 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun pointDao(): PointDao
 
     companion object {
-        @Volatile
-        private var INSTANCE: AppDatabase? = null
+        @Volatile private var instance: AppDatabase? = null
 
-        fun getDatabase(context: Context): AppDatabase {
-            return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "points_database"
-                ).build()
-                INSTANCE = instance
-                instance
+        fun getDatabase(context: Context): AppDatabase =
+            instance ?: synchronized(this) {
+                instance ?: buildDatabase(context).also { instance = it }
             }
-        }
+
+        private fun buildDatabase(context: Context) =
+            Room.databaseBuilder(
+                context.applicationContext,
+                AppDatabase::class.java, "points.db"
+            ).build()
     }
 }

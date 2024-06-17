@@ -35,6 +35,14 @@
         app:srcCompat="@drawable/minus_line_svgrepo_com"
         />
 
+    <Button
+        android:id="@+id/button_view_all_points"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Список точек"
+        >
+
+    </Button>
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/location"
         android:layout_width="wrap_content"
